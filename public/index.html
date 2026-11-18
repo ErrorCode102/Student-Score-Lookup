@@ -1,693 +1,1347 @@
 <!DOCTYPE html>
-<html lang="th">
+<html lang="th" class="">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Student Score Dashboard | Vercel + Supabase</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: { extend: { fontFamily: { sans: ['Prompt', 'sans-serif'] } } }
-    }
-  </script>
-  <style>
-    @media print {
-      .no-print { display: none !important; }
-      body { background: #fff !important; color: #000 !important; }
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบจัดการและตรวจสอบผลการเรียน (Student Score Dashboard)</title>
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Prompt', 'Inter', 'sans-serif'] },
+                    colors: {
+                        brand: { 50: '#eef2ff', 100: '#e0e7ff', 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca' }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Google Fonts: Prompt & Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Lucide Icons CDN -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+    <!-- Prevent Flash of Unstyled Theme -->
+    <script>
+        (function() {
+            const saved = localStorage.getItem('theme');
+            const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (saved === 'dark' || (!saved && prefersDark)) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        })();
+    </script>
+
+    <style>
+        body { font-family: 'Prompt', 'Inter', sans-serif; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in { animation: fadeIn 0.28s ease-out forwards; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+        .dark ::-webkit-scrollbar-thumb { background: #334155; }
+        @media print {
+            .no-print { display: none !important; }
+            body { background: #ffffff !important; color: #0f172a !important; }
+            .print-clean {
+                box-shadow: none !important;
+                border: 1px solid #cbd5e1 !important;
+                background: #ffffff !important;
+                color: #0f172a !important;
+            }
+        }
+    </style>
 </head>
-<body class="bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100 transition-colors duration-200 min-h-screen">
+<body class="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 transition-colors duration-200 antialiased selection:bg-indigo-500 selection:text-white">
 
-  <!-- Navbar -->
-  <nav class="no-print sticky top-0 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur border-b border-slate-200 dark:border-slate-800">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
-      <div class="flex items-center gap-3">
-        <div class="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold shadow">S</div>
-        <div>
-          <h1 class="font-bold text-base sm:text-lg leading-tight">ระบบตรวจสอบผลการเรียน</h1>
-          <div id="dbStatus" class="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-            <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span> กำลังตรวจสอบการเชื่อมต่อ Vercel ↔ Supabase...
-          </div>
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="no-print fixed top-4 right-4 z-50 flex flex-col gap-2.5 max-w-sm w-full pointer-events-none px-4 sm:px-0"></div>
+
+    <!-- ========================================== -->
+    <!-- TOP HEADER & NAVIGATION                    -->
+    <!-- ========================================== -->
+    <header class="no-print bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 sticky top-0 z-30 transition-colors">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3.5">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3.5">
+                <!-- Brand Logo & Title -->
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-600 to-violet-600 text-white flex items-center justify-center shadow-md shadow-indigo-500/20 shrink-0">
+                            <i data-lucide="graduation-cap" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <h1 class="text-base sm:text-lg font-bold text-slate-900 dark:text-white leading-tight">ระบบตรวจสอบผลการเรียน</h1>
+                            <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">Student Score Dashboard &amp; Admin Portal</p>
+                        </div>
+                    </div>
+                    <!-- Mobile Theme Toggle -->
+                    <button type="button" onclick="toggleTheme()" aria-label="สลับธีมมืดและสว่าง"
+                        class="md:hidden p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-amber-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition cursor-pointer">
+                        <i data-lucide="sun" class="w-4 h-4 hidden dark:block"></i>
+                        <i data-lucide="moon" class="w-4 h-4 block dark:hidden"></i>
+                    </button>
+                </div>
+
+                <!-- Right Controls: DB Status + Theme Toggle -->
+                <div class="flex flex-wrap items-center gap-2 sm:gap-2.5">
+                    <!-- Database Connection Status Badge -->
+                    <div id="db-status-badge" class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/70">
+                        <span id="db-status-dot" class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                        <span id="db-status-text">กำลังตรวจสอบการเชื่อมต่อ...</span>
+                    </div>
+                    <!-- Desktop Dark / Light Mode Toggle -->
+                    <button type="button" onclick="toggleTheme()" title="สลับโหมดมืด / สว่าง"
+                        class="hidden md:inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700 transition cursor-pointer">
+                        <i data-lucide="sun" class="w-4 h-4 text-amber-400 hidden dark:block"></i>
+                        <i data-lucide="moon" class="w-4 h-4 text-indigo-600 block dark:hidden"></i>
+                        <span id="theme-label-text">โหมดสว่าง</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Main Navigation Tabs -->
+            <nav class="flex gap-2 mt-3.5 pt-3 border-t border-slate-100 dark:border-slate-800" aria-label="เมนูหลัก">
+                <button type="button" id="tab-student" onclick="switchTab('student')"
+                    class="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition cursor-pointer bg-indigo-600 text-white shadow-sm shadow-indigo-500/25">
+                    <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
+                    <span>แดชบอร์ดนักเรียน</span>
+                </button>
+                <button type="button" id="tab-admin" onclick="switchTab('admin')"
+                    class="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition cursor-pointer bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700">
+                    <i data-lucide="shield-check" class="w-4 h-4"></i>
+                    <span>จัดการระบบ (Admin)</span>
+                </button>
+            </nav>
         </div>
-      </div>
+    </header>
 
-      <div class="flex items-center gap-2">
-        <button onclick="switchTab('student')" id="tabStudentBtn" class="px-3.5 py-2 rounded-xl text-sm font-medium bg-indigo-600 text-white">
-          Student Dashboard
-        </button>
-        <button onclick="switchTab('admin')" id="tabAdminBtn" class="px-3.5 py-2 rounded-xl text-sm font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700">
-          Admin Panel
-        </button>
-        <button onclick="toggleTheme()" title="สลับธีมมืด/สว่าง" class="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-sm">
-          <span id="themeIcon">🌙</span>
-        </button>
-      </div>
+    <!-- ========================================== -->
+    <!-- MAIN CONTENT CONTAINER                     -->
+    <!-- ========================================== -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8">
+
+        <!-- ========================================================= -->
+        <!-- VIEW 1: STUDENT DASHBOARD VIEW                            -->
+        <!-- ========================================================= -->
+        <section id="view-student" class="animate-fade-in space-y-6">
+
+            <!-- Search Hero Card -->
+            <div class="no-print bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200/80 dark:border-slate-800 p-5 sm:p-8 max-w-4xl mx-auto transition-colors">
+                <div class="text-center mb-6">
+                    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800/60 mb-2.5">
+                        <i data-lucide="sparkles" class="w-3.5 h-3.5"></i> Student Academic Portal
+                    </span>
+                    <h2 class="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">ค้นหาแดชบอร์ดผลการเรียนรายบุคคล</h2>
+                    <p class="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">กรอกรหัสนักเรียนของคุณเพื่อดูกราฟวิเคราะห์คะแนน เกรดเฉลี่ย และผลการประเมินรายวิชา</p>
+                </div>
+
+                <!-- Search Form -->
+                <form id="student-search-form" onsubmit="handleStudentSearch(event)" class="flex flex-col sm:flex-row gap-3 max-w-2xl mx-auto">
+                    <div class="relative flex-1">
+                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
+                            <i data-lucide="search" class="w-4 h-4"></i>
+                        </div>
+                        <input type="text" id="search-student-id" placeholder="กรอกรหัสนักเรียน เช่น 66001" required
+                            class="w-full pl-11 pr-4 py-3.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/80 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-slate-900 dark:text-white font-medium transition">
+                    </div>
+                    <button type="submit"
+                        class="px-6 py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] text-white font-semibold shadow-md shadow-indigo-500/20 transition flex items-center justify-center gap-2 cursor-pointer shrink-0">
+                        <i data-lucide="search" class="w-4 h-4"></i>
+                        <span>ค้นหาคะแนน</span>
+                    </button>
+                </form>
+
+                <!-- Quick ID Chips -->
+                <div class="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-center gap-2">
+                    <span class="text-xs text-slate-500 dark:text-slate-400 font-medium inline-flex items-center gap-1">
+                        <i data-lucide="zap" class="w-3.5 h-3.5 text-amber-500"></i> รหัสตัวอย่างด่วน:
+                    </span>
+                    <button onclick="quickSearchStudent('66001')" class="px-3 py-1 rounded-lg text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/80 hover:bg-indigo-100 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 border border-indigo-200/70 dark:border-indigo-800/70 transition cursor-pointer">66001</button>
+                    <button onclick="quickSearchStudent('66002')" class="px-3 py-1 rounded-lg text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/80 hover:bg-indigo-100 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 border border-indigo-200/70 dark:border-indigo-800/70 transition cursor-pointer">66002</button>
+                    <button onclick="quickSearchStudent('66003')" class="px-3 py-1 rounded-lg text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/80 hover:bg-indigo-100 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 border border-indigo-200/70 dark:border-indigo-800/70 transition cursor-pointer">66003</button>
+                    <button onclick="quickSearchStudent('66004')" class="px-3 py-1 rounded-lg text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/80 hover:bg-indigo-100 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 border border-indigo-200/70 dark:border-indigo-800/70 transition cursor-pointer">66004</button>
+                    <button onclick="quickSearchStudent('66005')" class="px-3 py-1 rounded-lg text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/80 hover:bg-indigo-100 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 border border-indigo-200/70 dark:border-indigo-800/70 transition cursor-pointer">66005</button>
+                </div>
+            </div>
+
+            <!-- Welcome Info Cards (before search) -->
+            <div id="student-welcome-dashboard" class="max-w-4xl mx-auto space-y-6 animate-fade-in">
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div class="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center gap-4">
+                        <div class="w-12 h-12 rounded-xl bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+                            <i data-lucide="book-open" class="w-6 h-6"></i>
+                        </div>
+                        <div>
+                            <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">เกณฑ์การตัดเกรด</p>
+                            <p class="text-sm font-bold text-slate-900 dark:text-white mt-0.5">A: 80–100 | B: 70–79</p>
+                        </div>
+                    </div>
+                    <div class="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center gap-4">
+                        <div class="w-12 h-12 rounded-xl bg-emerald-50 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                            <i data-lucide="shield" class="w-6 h-6"></i>
+                        </div>
+                        <div>
+                            <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">ความปลอดภัยของข้อมูล</p>
+                            <p class="text-sm font-bold text-slate-900 dark:text-white mt-0.5">แสดงเฉพาะรหัสที่ค้นหา</p>
+                        </div>
+                    </div>
+                    <div class="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200/80 dark:border-slate-800 shadow-sm flex items-center gap-4">
+                        <div class="w-12 h-12 rounded-xl bg-amber-50 dark:bg-amber-950/80 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                            <i data-lucide="database" class="w-6 h-6"></i>
+                        </div>
+                        <div>
+                            <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">ฐานข้อมูลเรียลไทม์</p>
+                            <p class="text-sm font-bold text-slate-900 dark:text-white mt-0.5">Vercel + Supabase API</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Grading Criteria -->
+                <div class="bg-white dark:bg-slate-900 rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800 shadow-sm">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                            <i data-lucide="award" class="w-4 h-4 text-indigo-600 dark:text-indigo-400"></i>
+                            เกณฑ์การประเมินผลการเรียน (ช่วงคะแนน 0 - 100)
+                        </h3>
+                        <span class="text-xs text-slate-400">เกณฑ์ผ่านขั้นต่ำ: 50 คะแนน</span>
+                    </div>
+                    <div class="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+                        <div class="p-3 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/60 text-center">
+                            <span class="text-lg font-extrabold text-emerald-600 dark:text-emerald-400">เกรด A</span>
+                            <p class="text-xs font-semibold text-slate-700 dark:text-slate-300 mt-0.5">80 - 100 คะแนน</p>
+                            <p class="text-[11px] text-emerald-600 dark:text-emerald-400 mt-0.5">ดีเยี่ยม</p>
+                        </div>
+                        <div class="p-3 rounded-xl bg-blue-50/70 dark:bg-blue-950/40 border border-blue-200/80 dark:border-blue-800/60 text-center">
+                            <span class="text-lg font-extrabold text-blue-600 dark:text-blue-400">เกรด B</span>
+                            <p class="text-xs font-semibold text-slate-700 dark:text-slate-300 mt-0.5">70 - 79 คะแนน</p>
+                            <p class="text-[11px] text-blue-600 dark:text-blue-400 mt-0.5">ดี</p>
+                        </div>
+                        <div class="p-3 rounded-xl bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/60 text-center">
+                            <span class="text-lg font-extrabold text-amber-600 dark:text-amber-400">เกรด C</span>
+                            <p class="text-xs font-semibold text-slate-700 dark:text-slate-300 mt-0.5">60 - 69 คะแนน</p>
+                            <p class="text-[11px] text-amber-600 dark:text-amber-400 mt-0.5">ปานกลาง</p>
+                        </div>
+                        <div class="p-3 rounded-xl bg-orange-50/70 dark:bg-orange-950/40 border border-orange-200/80 dark:border-orange-800/60 text-center">
+                            <span class="text-lg font-extrabold text-orange-600 dark:text-orange-400">เกรด D</span>
+                            <p class="text-xs font-semibold text-slate-700 dark:text-slate-300 mt-0.5">50 - 59 คะแนน</p>
+                            <p class="text-[11px] text-orange-600 dark:text-orange-400 mt-0.5">พอใช้</p>
+                        </div>
+                        <div class="col-span-2 sm:col-span-1 p-3 rounded-xl bg-rose-50/70 dark:bg-rose-950/40 border border-rose-200/80 dark:border-rose-800/60 text-center">
+                            <span class="text-lg font-extrabold text-rose-600 dark:text-rose-400">เกรด F</span>
+                            <p class="text-xs font-semibold text-slate-700 dark:text-slate-300 mt-0.5">0 - 49 คะแนน</p>
+                            <p class="text-[11px] text-rose-600 dark:text-rose-400 mt-0.5">ไม่ผ่านเกณฑ์</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Not Found State -->
+            <div id="student-not-found" class="hidden max-w-2xl mx-auto bg-white dark:bg-slate-900 rounded-2xl border border-rose-200 dark:border-rose-800/70 p-8 text-center shadow-sm animate-fade-in">
+                <div class="w-14 h-14 rounded-2xl bg-rose-50 dark:bg-rose-950/70 text-rose-500 flex items-center justify-center mx-auto mb-3">
+                    <i data-lucide="user-x" class="w-7 h-7"></i>
+                </div>
+                <h3 class="text-lg font-bold text-slate-900 dark:text-white">ไม่พบข้อมูลรหัสนักเรียน "<span id="not-found-id-text" class="text-rose-600 dark:text-rose-400"></span>"</h3>
+                <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">กรุณาตรวจสอบความถูกต้องของรหัสนักเรียนอีกครั้ง</p>
+                <button type="button" onclick="clearStudentSearch()"
+                    class="mt-5 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm font-medium transition cursor-pointer">
+                    <i data-lucide="rotate-ccw" class="w-4 h-4"></i> กลับสู่หน้าหลัก
+                </button>
+            </div>
+
+            <!-- Personal Student Dashboard (after search) -->
+            <div id="student-personal-dashboard" class="hidden max-w-6xl mx-auto space-y-6 animate-fade-in">
+
+                <!-- Profile Banner -->
+                <div class="print-clean bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200/80 dark:border-slate-800 p-5 sm:p-6">
+                    <div class="flex flex-col sm:flex-row items-center justify-between gap-5">
+                        <div class="flex flex-col sm:flex-row items-center gap-4 sm:gap-5 text-center sm:text-left">
+                            <div class="relative shrink-0">
+                                <img id="res-student-pic" src="https://placehold.co/160x160/4f46e5/ffffff?text=STD" alt="รูปโปรไฟล์"
+                                    class="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover border-4 border-indigo-50 dark:border-slate-800 shadow-sm bg-slate-100 dark:bg-slate-800">
+                                <span class="absolute -bottom-1.5 -right-1.5 w-7 h-7 rounded-xl bg-emerald-500 text-white flex items-center justify-center shadow-sm border-2 border-white dark:border-slate-900">
+                                    <i data-lucide="check" class="w-4 h-4"></i>
+                                </span>
+                            </div>
+                            <div>
+                                <div class="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                                    <span class="text-xs font-semibold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/80 px-2.5 py-1 rounded-lg border border-indigo-100 dark:border-indigo-800/60">
+                                        รายงานผลการเรียนส่วนบุคคล
+                                    </span>
+                                    <span id="res-status-badge" class="px-2.5 py-1 rounded-lg text-xs font-bold border">สถานะ: -</span>
+                                </div>
+                                <h3 class="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white mt-2">
+                                    รหัสนักเรียน: <span id="res-student-id" class="text-indigo-600 dark:text-indigo-400">-</span>
+                                </h3>
+                                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">สรุปผลการประเมินรายวิชาทั้งหมดที่ลงทะเบียนในภาคการศึกษานี้</p>
+                            </div>
+                        </div>
+                        <div class="no-print flex items-center gap-2 shrink-0">
+                            <button type="button" onclick="window.print()"
+                                class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/70 hover:bg-indigo-100 dark:hover:bg-indigo-900/70 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800 text-xs sm:text-sm font-semibold transition cursor-pointer">
+                                <i data-lucide="printer" class="w-4 h-4"></i> พิมพ์รายงานผล
+                            </button>
+                            <button type="button" onclick="clearStudentSearch()"
+                                class="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs sm:text-sm font-semibold transition cursor-pointer">
+                                <i data-lucide="x" class="w-4 h-4"></i> ปิด
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4 KPI Cards -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div class="print-clean bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200/80 dark:border-slate-800 shadow-sm">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-semibold text-slate-500 dark:text-slate-400">คะแนนเฉลี่ยรวม</span>
+                            <div class="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                                <i data-lucide="trending-up" class="w-4 h-4"></i>
+                            </div>
+                        </div>
+                        <p class="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white mt-3">
+                            <span id="kpi-avg-score">0.00</span><span class="text-xs font-normal text-slate-400"> / 100</span>
+                        </p>
+                        <p class="text-[11px] text-slate-400 mt-1">คำนวณจากทุกรายวิชาที่ลงทะเบียน</p>
+                    </div>
+                    <div class="print-clean bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200/80 dark:border-slate-800 shadow-sm">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-semibold text-slate-500 dark:text-slate-400">เกรดเฉลี่ยประเมิน</span>
+                            <div class="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                                <i data-lucide="award" class="w-4 h-4"></i>
+                            </div>
+                        </div>
+                        <p id="kpi-overall-grade" class="text-2xl sm:text-3xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-3">-</p>
+                        <p id="kpi-overall-label" class="text-[11px] text-slate-400 mt-1">ระดับผลการเรียนรวม</p>
+                    </div>
+                    <div class="print-clean bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200/80 dark:border-slate-800 shadow-sm">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-semibold text-slate-500 dark:text-slate-400">วิชาที่ได้คะแนนสูงสุด</span>
+                            <div class="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-950/80 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+                                <i data-lucide="trophy" class="w-4 h-4"></i>
+                            </div>
+                        </div>
+                        <p id="kpi-top-score" class="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white mt-3">-</p>
+                        <p id="kpi-top-subject" class="text-xs font-medium text-amber-600 dark:text-amber-400 mt-1 truncate">-</p>
+                    </div>
+                    <div class="print-clean bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200/80 dark:border-slate-800 shadow-sm">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-semibold text-slate-500 dark:text-slate-400">วิชาที่ลงทะเบียนเรียน</span>
+                            <div class="w-9 h-9 rounded-xl bg-sky-50 dark:bg-sky-950/80 text-sky-600 dark:text-sky-400 flex items-center justify-center">
+                                <i data-lucide="book-open" class="w-4 h-4"></i>
+                            </div>
+                        </div>
+                        <p class="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white mt-3">
+                            <span id="kpi-subject-count">0</span><span class="text-xs font-normal text-slate-400"> รายวิชา</span>
+                        </p>
+                        <p id="kpi-pass-summary" class="text-[11px] text-slate-400 mt-1">ผ่านเกณฑ์ 0 วิชา</p>
+                    </div>
+                </div>
+
+                <!-- Charts -->
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    <div class="print-clean lg:col-span-7 bg-white dark:bg-slate-900 rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800 shadow-sm">
+                        <div class="mb-4">
+                            <h4 class="font-bold text-slate-900 dark:text-white text-sm sm:text-base flex items-center gap-2">
+                                <i data-lucide="bar-chart-2" class="w-4 h-4 text-indigo-600 dark:text-indigo-400"></i>
+                                กราฟเปรียบเทียบคะแนนรายวิชา
+                            </h4>
+                            <p class="text-xs text-slate-500 dark:text-slate-400">แสดงคะแนนสอบแต่ละวิชาเทียบกับคะแนนเต็ม 100</p>
+                        </div>
+                        <div class="relative h-64 w-full"><canvas id="student-bar-chart"></canvas></div>
+                    </div>
+                    <div class="print-clean lg:col-span-5 bg-white dark:bg-slate-900 rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800 shadow-sm">
+                        <div class="mb-4">
+                            <h4 class="font-bold text-slate-900 dark:text-white text-sm sm:text-base flex items-center gap-2">
+                                <i data-lucide="pie-chart" class="w-4 h-4 text-emerald-600 dark:text-emerald-400"></i>
+                                สัดส่วนระดับเกรด (A - F)
+                            </h4>
+                            <p class="text-xs text-slate-500 dark:text-slate-400">การกระจายตัวของเกรดในแต่ละรายวิชา</p>
+                        </div>
+                        <div class="relative h-64 w-full flex items-center justify-center"><canvas id="student-doughnut-chart"></canvas></div>
+                    </div>
+                </div>
+
+                <!-- Subject Cards -->
+                <div class="print-clean bg-white dark:bg-slate-900 rounded-2xl p-5 sm:p-6 border border-slate-200/80 dark:border-slate-800 shadow-sm">
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+                        <h4 class="font-bold text-slate-900 dark:text-white text-base flex items-center gap-2">
+                            <i data-lucide="list-checks" class="w-5 h-5 text-indigo-600 dark:text-indigo-400"></i>
+                            รายละเอียดคะแนนรายวิชาทั้งหมด (เต็ม 100 คะแนน)
+                        </h4>
+                        <span class="text-xs text-slate-400">เรียงตามลำดับรายวิชาที่บันทึก</span>
+                    </div>
+                    <div id="res-subjects-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+                </div>
+
+            </div>
+        </section>
+
+        <!-- ========================================================= -->
+        <!-- VIEW 2: ADMIN PANEL                                       -->
+        <!-- ========================================================= -->
+        <section id="view-admin" class="hidden animate-fade-in">
+
+            <!-- Admin Login Box -->
+            <div id="admin-login-box" class="max-w-md mx-auto bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200/80 dark:border-slate-800 p-6 sm:p-8 mt-4">
+                <div class="text-center mb-6">
+                    <div class="w-14 h-14 rounded-2xl bg-slate-900 dark:bg-indigo-600 text-white flex items-center justify-center mx-auto mb-3 shadow-md">
+                        <i data-lucide="lock" class="w-6 h-6"></i>
+                    </div>
+                    <h2 class="text-xl font-bold text-slate-900 dark:text-white">เข้าสู่ระบบผู้ดูแลระบบ</h2>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">สงวนสิทธิ์เฉพาะผู้ดูแลระบบในการดูรายการทั้งหมดและแก้ไขคะแนน</p>
+                </div>
+
+                <div id="admin-login-error" class="hidden mb-4 p-3 rounded-xl bg-rose-50 dark:bg-rose-950/70 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-medium flex items-center gap-2">
+                    <i data-lucide="alert-circle" class="w-4 h-4 shrink-0 text-rose-500"></i>
+                    <span>ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง</span>
+                </div>
+
+                <form onsubmit="handleAdminLogin(event)" class="space-y-4">
+                    <div>
+                        <label for="admin-username" class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">ชื่อผู้ใช้งาน (Username)</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400 pointer-events-none">
+                                <i data-lucide="user" class="w-4 h-4"></i>
+                            </span>
+                            <input type="text" id="admin-username" value="admin" required autocomplete="username"
+                                class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
+                        </div>
+                    </div>
+                    <div>
+                        <label for="admin-password" class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">รหัสผ่าน (Password)</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400 pointer-events-none">
+                                <i data-lucide="key-round" class="w-4 h-4"></i>
+                            </span>
+                            <input type="password" id="admin-password" value="admin123" required autocomplete="current-password"
+                                class="w-full pl-10 pr-11 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
+                            <button type="button" onclick="togglePasswordVisibility()" class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer">
+                                <i id="password-eye-icon" data-lucide="eye" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <button type="submit" class="w-full py-3 rounded-xl bg-slate-900 dark:bg-indigo-600 hover:bg-slate-800 dark:hover:bg-indigo-700 text-white font-semibold text-sm shadow-md transition flex items-center justify-center gap-2 cursor-pointer mt-2">
+                        <i data-lucide="log-in" class="w-4 h-4"></i> เข้าสู่ระบบ Admin
+                    </button>
+                </form>
+
+                <div class="mt-5 pt-4 border-t border-slate-100 dark:border-slate-800 text-center">
+                    <p class="text-[11px] text-slate-400">บัญชีผู้ดูแลระบบ: <code class="text-slate-600 dark:text-slate-300 font-semibold">admin</code> / <code class="text-slate-600 dark:text-slate-300 font-semibold">admin123</code></p>
+                </div>
+            </div>
+
+            <!-- Admin Dashboard -->
+            <div id="admin-dashboard" class="hidden space-y-6">
+
+                <!-- Admin Header Bar -->
+                <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200/80 dark:border-slate-800 p-4 sm:px-6 flex flex-wrap items-center justify-between gap-3">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                            <i data-lucide="shield-check" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <h2 class="text-base sm:text-lg font-bold text-slate-900 dark:text-white">ระบบจัดการข้อมูลคะแนนทั้งหมด (Admin Only)</h2>
+                            <p class="text-xs text-slate-500 dark:text-slate-400">เพิ่ม แก้ไข ลบ และค้นหาข้อมูลแบบละเอียดจากฐานข้อมูลทั้งหมด</p>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button type="button" onclick="loadAllAdminData()"
+                            class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold transition cursor-pointer">
+                            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> รีเฟรช
+                        </button>
+                        <button type="button" onclick="handleAdminLogout()"
+                            class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-800 text-xs sm:text-sm font-semibold transition cursor-pointer">
+                            <i data-lucide="log-out" class="w-4 h-4"></i> ออกจากระบบ
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Two-Column Layout -->
+                <div class="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+
+                    <!-- LEFT: Insert / Edit Form -->
+                    <div class="xl:col-span-4 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200/80 dark:border-slate-800 p-5 sm:p-6">
+                        <div class="flex items-center justify-between pb-3.5 mb-4 border-b border-slate-100 dark:border-slate-800">
+                            <h3 class="font-bold text-slate-900 dark:text-white flex items-center gap-2 text-sm sm:text-base">
+                                <span id="form-mode-badge" class="w-7 h-7 rounded-lg bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                                    <i data-lucide="plus" class="w-4 h-4"></i>
+                                </span>
+                                <span id="form-mode-text">เพิ่มข้อมูลคะแนนใหม่</span>
+                            </h3>
+                            <span id="editing-record-id-label" class="hidden text-xs font-mono bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 px-2 py-0.5 rounded-md">ID: #</span>
+                        </div>
+
+                        <form id="admin-crud-form" onsubmit="handleAdminFormSubmit(event)" class="space-y-4">
+                            <input type="hidden" id="edit-record-id" value="">
+                            <div>
+                                <label for="input-student-id" class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">รหัสนักเรียน <span class="text-rose-500">*</span></label>
+                                <input type="text" id="input-student-id" required placeholder="เช่น 66001"
+                                    class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
+                            </div>
+                            <div>
+                                <label for="input-subject" class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">รายวิชา <span class="text-rose-500">*</span></label>
+                                <input type="text" id="input-subject" required placeholder="เช่น คณิตศาสตร์"
+                                    class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
+                            </div>
+                            <div>
+                                <div class="flex items-center justify-between mb-1">
+                                    <label for="input-score" class="block text-xs font-semibold text-slate-700 dark:text-slate-300">คะแนน (0 - 100) <span class="text-rose-500">*</span></label>
+                                    <span id="live-grade-preview" class="text-[11px] font-semibold text-slate-400">เกรด: -</span>
+                                </div>
+                                <input type="number" id="input-score" min="0" max="100" step="any" required placeholder="0 - 100" oninput="updateLiveGradePreview()"
+                                    class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
+                            </div>
+                            <div>
+                                <label for="input-pic" class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">ลิงก์รูปโปรไฟล์ (Pic URL)</label>
+                                <input type="text" id="input-pic" placeholder="https://..."
+                                    class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
+                            </div>
+                            <div class="pt-1 flex flex-col sm:flex-row gap-2.5">
+                                <button type="submit" id="btn-submit-form"
+                                    class="flex-1 py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm shadow-sm transition flex items-center justify-center gap-2 cursor-pointer">
+                                    <i data-lucide="save" class="w-4 h-4"></i>
+                                    <span id="btn-submit-text">บันทึกข้อมูล</span>
+                                </button>
+                                <button type="button" id="btn-cancel-edit" onclick="resetAdminForm()"
+                                    class="hidden py-2.5 px-4 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-semibold text-sm transition flex items-center justify-center gap-1.5 cursor-pointer">
+                                    <i data-lucide="x" class="w-4 h-4"></i> ยกเลิก
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- RIGHT: Search & Full Table -->
+                    <div class="xl:col-span-8 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200/80 dark:border-slate-800 p-5 sm:p-6 space-y-5">
+
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-800">
+                            <div>
+                                <h3 class="font-bold text-slate-900 dark:text-white flex items-center gap-2 text-base">
+                                    <i data-lucide="database" class="w-4 h-4 text-indigo-600 dark:text-indigo-400"></i>
+                                    รายการข้อมูลทั้งหมดในระบบ (เฉพาะ Admin)
+                                </h3>
+                                <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                    แสดงผล <span id="admin-filtered-count" class="font-bold text-indigo-600 dark:text-indigo-400">0</span> จากทั้งหมด <span id="admin-total-count" class="font-bold">0</span> รายการ
+                                </p>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button type="button" onclick="exportFilteredCsv()"
+                                    class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-xs font-semibold transition cursor-pointer">
+                                    <i data-lucide="download" class="w-3.5 h-3.5"></i> Export CSV
+                                </button>
+                                <button type="button" onclick="resetAdminFilters()"
+                                    class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold transition cursor-pointer">
+                                    <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> ล้างตัวกรอง
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Filters -->
+                        <div class="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 space-y-3.5">
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <div>
+                                    <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">คำค้นหา</label>
+                                    <div class="relative">
+                                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 pointer-events-none"><i data-lucide="search" class="w-3.5 h-3.5"></i></span>
+                                        <input type="text" id="filter-keyword" oninput="applyAdminFilters()" placeholder="พิมพ์คำค้นหา..."
+                                            class="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">กรองตามรหัสนักเรียน</label>
+                                    <select id="filter-student-id" onchange="applyAdminFilters()"
+                                        class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                        <option value="all">ทั้งหมด</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">กรองตามรายวิชา</label>
+                                    <select id="filter-subject" onchange="applyAdminFilters()"
+                                        class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                        <option value="all">ทั้งหมด</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                <div>
+                                    <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">ระดับเกรด</label>
+                                    <select id="filter-grade" onchange="applyAdminFilters()"
+                                        class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                        <option value="all">ทุกเกรด (A - F)</option>
+                                        <option value="A">เกรด A (80-100)</option>
+                                        <option value="B">เกรด B (70-79)</option>
+                                        <option value="C">เกรด C (60-69)</option>
+                                        <option value="D">เกรด D (50-59)</option>
+                                        <option value="F">เกรด F (0-49)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">คะแนนต่ำสุด</label>
+                                    <input type="number" id="filter-min-score" min="0" max="100" oninput="applyAdminFilters()" placeholder="Min"
+                                        class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">คะแนนสูงสุด</label>
+                                    <input type="number" id="filter-max-score" min="0" max="100" oninput="applyAdminFilters()" placeholder="Max"
+                                        class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">เรียงลำดับ</label>
+                                    <select id="filter-sort" onchange="applyAdminFilters()"
+                                        class="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                        <option value="newest">ล่าสุด</option>
+                                        <option value="student_asc">รหัสนักเรียน ↑</option>
+                                        <option value="score_desc">คะแนน ↓</option>
+                                        <option value="score_asc">คะแนน ↑</option>
+                                        <option value="subject_asc">ชื่อวิชา ↑</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Table -->
+                        <div id="admin-table-wrapper" class="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="bg-slate-50 dark:bg-slate-800/90 border-b border-slate-200 dark:border-slate-800 text-[11px] font-bold uppercase text-slate-500 dark:text-slate-400 tracking-wider">
+                                        <th class="py-3 px-3.5">รูป</th>
+                                        <th class="py-3 px-3.5">รหัสนักเรียน</th>
+                                        <th class="py-3 px-3.5">รายวิชา</th>
+                                        <th class="py-3 px-3.5">คะแนน</th>
+                                        <th class="py-3 px-3.5 text-center">เกรด</th>
+                                        <th class="py-3 px-3.5 text-right">จัดการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="admin-table-body" class="divide-y divide-slate-100 dark:divide-slate-800 text-sm"></tbody>
+                            </table>
+                        </div>
+                        <div id="admin-table-empty" class="hidden py-10 text-center bg-slate-50/50 dark:bg-slate-800/30 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
+                            <p class="text-sm text-slate-600 dark:text-slate-300 font-semibold">ไม่พบรายการที่ตรงกับเงื่อนไขการค้นหา</p>
+                            <p class="text-xs text-slate-400 mt-1">ลองปรับเปลี่ยนตัวกรองด้านบน หรือกดปุ่ม "ล้างตัวกรอง"</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="no-print bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 py-4 mt-10 transition-colors">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-400">
+            <p>© 2026 ระบบจัดการและตรวจสอบผลการเรียน (Student Score Dashboard)</p>
+            <p>Vercel Serverless API + Supabase PostgreSQL</p>
+        </div>
+    </footer>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="modal-delete-confirm" class="no-print fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+        <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800 animate-fade-in text-center">
+            <div class="w-12 h-12 rounded-full bg-rose-100 dark:bg-rose-950 text-rose-600 dark:text-rose-400 flex items-center justify-center mx-auto mb-3">
+                <i data-lucide="trash-2" class="w-6 h-6"></i>
+            </div>
+            <h3 class="text-lg font-bold text-slate-900 dark:text-white">ยืนยันการลบข้อมูล?</h3>
+            <p class="text-sm text-slate-500 dark:text-slate-400 mt-1.5">
+                คุณต้องการลบคะแนนวิชา <span id="del-confirm-subject" class="font-semibold text-slate-800 dark:text-slate-200">-</span>
+                ของรหัสนักเรียน <span id="del-confirm-student" class="font-semibold text-indigo-600 dark:text-indigo-400">-</span> ใช่หรือไม่?
+            </p>
+            <p class="text-xs text-rose-500 mt-1">การดำเนินการนี้ไม่สามารถย้อนกลับได้</p>
+            <div class="grid grid-cols-2 gap-2.5 mt-6">
+                <button type="button" onclick="closeDeleteModal()" class="py-2.5 px-4 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm font-semibold transition cursor-pointer">ยกเลิก</button>
+                <button type="button" id="btn-confirm-delete" onclick="executeDeleteRecord()" class="py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm font-semibold shadow-sm transition cursor-pointer">ยืนยันการลบ</button>
+            </div>
+        </div>
     </div>
-  </nav>
 
-  <!-- Main Container -->
-  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- ========================================== -->
+    <!-- APPLICATION JAVASCRIPT                     -->
+    <!-- ========================================== -->
+    <script>
+        // ==========================================
+        // STATE
+        // ==========================================
+        let adminToken = sessionStorage.getItem('admin_token') || '';
+        let allRecords = [];
+        let filteredRecords = [];
+        let chartBar = null;
+        let chartDoughnut = null;
+        let pendingDeleteId = null;
+        let lastSearchedId = '';
 
-    <!-- ==================== STUDENT DASHBOARD VIEW ==================== -->
-    <section id="studentView" class="space-y-6">
-      <!-- Search Hero -->
-      <div class="no-print bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-800">
-        <div class="max-w-2xl mx-auto text-center space-y-4">
-          <h2 class="text-2xl font-bold">ค้นหาผลการเรียนรายบุคคล</h2>
-          <p class="text-sm text-slate-500 dark:text-slate-400">กรอกรหัสนักเรียนเพื่อดู Dashboard สรุปคะแนนและเกรดรายวิชาจากฐานข้อมูล Supabase</p>
-          <form onsubmit="searchStudent(event)" class="flex flex-col sm:flex-row gap-2">
-            <input type="text" id="searchInput" placeholder="กรอกรหัสนักเรียน เช่น 66001" required
-              class="flex-1 px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-            <button type="submit" class="px-6 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow-sm">
-              ค้นหาคะแนน
-            </button>
-          </form>
-          <div class="flex flex-wrap items-center justify-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-            <span>รหัสทดสอบ:</span>
-            <button onclick="quickSearch('66001')" class="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 font-medium">66001</button>
-            <button onclick="quickSearch('66002')" class="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 font-medium">66002</button>
-            <button onclick="quickSearch('66003')" class="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 font-medium">66003</button>
-            <button onclick="quickSearch('66004')" class="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 font-medium">66004</button>
-            <button onclick="quickSearch('66005')" class="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 font-medium">66005</button>
-          </div>
-        </div>
-      </div>
+        // ==========================================
+        // INIT
+        // ==========================================
+        window.addEventListener('DOMContentLoaded', () => {
+            syncThemeLabel();
+            refreshIcons();
+            checkConnection();
+            if (adminToken) {
+                document.getElementById('admin-login-box').classList.add('hidden');
+                document.getElementById('admin-dashboard').classList.remove('hidden');
+            }
+        });
 
-      <!-- Welcome / Empty Info -->
-      <div id="studentWelcome" class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800">
-          <div class="text-indigo-600 dark:text-indigo-400 font-semibold mb-1">เกณฑ์การตัดเกรด</div>
-          <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-            A: 80–100 | B: 70–79 | C: 60–69 | D: 50–59 | F: 0–49 คะแนน
-          </p>
-        </div>
-        <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800">
-          <div class="text-emerald-600 dark:text-emerald-400 font-semibold mb-1">ความปลอดภัยของข้อมูล</div>
-          <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-            แสดงเฉพาะผลการเรียนของรหัสนักเรียนที่ค้นหา ข้อมูลรวมสงวนสิทธิ์เฉพาะผู้ดูแลระบบ
-          </p>
-        </div>
-        <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800">
-          <div class="text-sky-600 dark:text-sky-400 font-semibold mb-1">ฐานข้อมูลเรียลไทม์</div>
-          <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-            ดึงข้อมูลตรงจาก Supabase PostgreSQL ผ่าน Vercel Serverless API
-          </p>
-        </div>
-      </div>
-
-      <!-- Not Found Alert -->
-      <div id="studentNotFound" class="hidden bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 p-6 rounded-2xl text-center">
-        ไม่พบข้อมูลผลการเรียนของรหัสนักเรียนนี้ในระบบ
-      </div>
-
-      <!-- Student Result Dashboard -->
-      <div id="studentDashboard" class="hidden space-y-6">
-        <!-- Profile Header -->
-        <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div class="flex items-center gap-4">
-            <img id="stPic" src="" alt="Profile" class="w-20 h-20 rounded-2xl object-cover bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700" />
-            <div>
-              <span class="text-xs font-medium px-2.5 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300">Student Profile</span>
-              <h3 class="text-2xl font-bold mt-1">รหัสนักเรียน: <span id="stIdDisplay"></span></h3>
-              <p class="text-sm text-slate-500 dark:text-slate-400">รายงานสรุปผลการเรียนรายวิชา</p>
-            </div>
-          </div>
-          <button onclick="window.print()" class="no-print px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-sm font-medium">
-            🖨️ พิมพ์ใบรายงานผล
-          </button>
-        </div>
-
-        <!-- KPI Cards -->
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800">
-            <div class="text-xs text-slate-500 dark:text-slate-400">คะแนนเฉลี่ยรวม</div>
-            <div id="kpiAvg" class="text-2xl font-bold text-indigo-600 dark:text-indigo-400 mt-1">0.00</div>
-          </div>
-          <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800">
-            <div class="text-xs text-slate-500 dark:text-slate-400">เกรดเฉลี่ยภาพรวม</div>
-            <div id="kpiGrade" class="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">-</div>
-          </div>
-          <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800">
-            <div class="text-xs text-slate-500 dark:text-slate-400">วิชาที่ได้คะแนนสูงสุด</div>
-            <div id="kpiTopSubject" class="text-base font-bold mt-1 truncate">-</div>
-            <div id="kpiTopScore" class="text-xs text-slate-500"></div>
-          </div>
-          <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800">
-            <div class="text-xs text-slate-500 dark:text-slate-400">จำนวนวิชาทั้งหมด</div>
-            <div id="kpiCount" class="text-2xl font-bold mt-1">0</div>
-          </div>
-        </div>
-
-        <!-- Charts -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div class="lg:col-span-2 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800">
-            <h4 class="font-semibold mb-4">กราฟเปรียบเทียบคะแนนรายวิชา (0–100)</h4>
-            <div class="h-64"><canvas id="barChart"></canvas></div>
-          </div>
-          <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800">
-            <h4 class="font-semibold mb-4">สัดส่วนระดับเกรด</h4>
-            <div class="h-64"><canvas id="doughnutChart"></canvas></div>
-          </div>
-        </div>
-
-        <!-- Subject Breakdown -->
-        <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800">
-          <h4 class="font-semibold mb-4">รายละเอียดคะแนนแต่ละรายวิชา</h4>
-          <div id="subjectList" class="space-y-4"></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ==================== ADMIN VIEW ==================== -->
-    <section id="adminView" class="hidden space-y-6">
-      <!-- Admin Login Box -->
-      <div id="adminLoginBox" class="max-w-md mx-auto bg-white dark:bg-slate-900 p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-        <h2 class="text-xl font-bold text-center mb-2">เข้าสู่ระบบผู้ดูแลระบบ (Admin)</h2>
-        <p class="text-xs text-center text-slate-500 dark:text-slate-400 mb-6">เข้าสู่ระบบเพื่อจัดการข้อมูลและค้นหาข้อมูลทั้งหมดใน Supabase</p>
-        <form onsubmit="handleAdminLogin(event)" class="space-y-4">
-          <div>
-            <label class="block text-sm font-medium mb-1">Username</label>
-            <input type="text" id="adminUser" value="admin" required class="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800" />
-          </div>
-          <div>
-            <label class="block text-sm font-medium mb-1">Password</label>
-            <input type="password" id="adminPass" value="admin123" required class="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800" />
-          </div>
-          <div id="loginError" class="hidden text-xs text-rose-600 dark:text-rose-400"></div>
-          <button type="submit" class="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium">
-            เข้าสู่ระบบ
-          </button>
-        </form>
-      </div>
-
-      <!-- Admin Dashboard Content -->
-      <div id="adminContent" class="hidden space-y-6">
-        <div class="flex flex-wrap items-center justify-between gap-4 bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800">
-          <div>
-            <h2 class="text-xl font-bold">ระบบจัดการฐานข้อมูลคะแนน (Admin CRUD)</h2>
-            <p class="text-xs text-slate-500 dark:text-slate-400">เพิ่ม แก้ไข ลบ และค้นหาแบบละเอียดจากข้อมูลทั้งหมดในระบบ</p>
-          </div>
-          <div class="flex gap-2">
-            <button onclick="loadAllAdminData()" class="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-sm">🔄 รีเฟรช</button>
-            <button onclick="exportCSV()" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm">📥 Export CSV</button>
-            <button onclick="adminLogout()" class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-sm">ออกจากระบบ</button>
-          </div>
-        </div>
-
-        <!-- Insert / Edit Form -->
-        <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800">
-          <h3 id="formTitle" class="font-semibold text-base mb-4">➕ เพิ่มข้อมูลคะแนนใหม่ (Insert)</h3>
-          <form onsubmit="saveRecord(event)" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
-            <input type="hidden" id="editId" />
-            <div>
-              <label class="block text-xs font-medium mb-1">รหัสนักเรียน (ID Student) *</label>
-              <input type="text" id="fStudentId" required placeholder="เช่น 66001" oninput="autoFillPic()"
-                class="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm" />
-            </div>
-            <div>
-              <label class="block text-xs font-medium mb-1">รายวิชา (Subject) *</label>
-              <input type="text" id="fSubject" required placeholder="เช่น คณิตศาสตร์"
-                class="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm" />
-            </div>
-            <div>
-              <label class="block text-xs font-medium mb-1">คะแนน (0 - 100) *</label>
-              <input type="number" id="fScore" min="0" max="100" step="0.01" required placeholder="0 - 100"
-                class="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm" />
-            </div>
-            <div>
-              <label class="block text-xs font-medium mb-1">ลิงก์รูปโปรไฟล์ (Pic URL)</label>
-              <input type="text" id="fPic" placeholder="https://..."
-                class="w-full px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm" />
-            </div>
-            <div class="flex gap-2">
-              <button type="submit" id="submitBtn" class="flex-1 py-2 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium">
-                บันทึกข้อมูล
-              </button>
-              <button type="button" id="cancelEditBtn" onclick="resetForm()" class="hidden py-2 px-3 rounded-xl bg-slate-200 dark:bg-slate-700 text-sm">
-                ยกเลิก
-              </button>
-            </div>
-          </form>
-        </div>
-
-        <!-- Detailed Search Filters (Admin Only) -->
-        <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
-          <div class="flex items-center justify-between">
-            <h3 class="font-semibold text-base">🔍 ค้นหาแบบละเอียดจากข้อมูลทั้งหมดในระบบ (Admin Only)</h3>
-            <button onclick="resetFilters()" class="text-xs text-indigo-600 dark:text-indigo-400 hover:underline">ล้างตัวกรองทั้งหมด</button>
-          </div>
-          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
-            <input type="text" id="fltKeyword" oninput="applyAdminFilters()" placeholder="ค้นหาคำสำคัญ..."
-              class="px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm" />
-            <select id="fltStudent" onchange="applyAdminFilters()"
-              class="px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm">
-              <option value="">รหัสนักเรียนทั้งหมด</option>
-            </select>
-            <select id="fltSubject" onchange="applyAdminFilters()"
-              class="px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm">
-              <option value="">รายวิชาทั้งหมด</option>
-            </select>
-            <select id="fltGrade" onchange="applyAdminFilters()"
-              class="px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm">
-              <option value="">เกรดทั้งหมด (A-F)</option>
-              <option value="A">เกรด A (80-100)</option>
-              <option value="B">เกรด B (70-79)</option>
-              <option value="C">เกรด C (60-69)</option>
-              <option value="D">เกรด D (50-59)</option>
-              <option value="F">เกรด F (0-49)</option>
-            </select>
-            <div class="flex gap-1.5">
-              <input type="number" id="fltMin" min="0" max="100" oninput="applyAdminFilters()" placeholder="Min"
-                class="w-1/2 px-2.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm" />
-              <input type="number" id="fltMax" min="0" max="100" oninput="applyAdminFilters()" placeholder="Max"
-                class="w-1/2 px-2.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm" />
-            </div>
-            <select id="fltSort" onchange="applyAdminFilters()"
-              class="px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm">
-              <option value="newest">เรียง: ล่าสุด</option>
-              <option value="score_desc">คะแนน: มาก → น้อย</option>
-              <option value="score_asc">คะแนน: น้อย → มาก</option>
-              <option value="id_asc">รหัสนักเรียน: A → Z</option>
-            </select>
-          </div>
-          <div class="text-xs text-slate-500 dark:text-slate-400">
-            แสดงผล <span id="filteredCount" class="font-bold text-indigo-600 dark:text-indigo-400">0</span> รายการ จากทั้งหมด <span id="totalCount" class="font-bold">0</span> รายการ
-          </div>
-
-          <!-- Table -->
-          <div class="overflow-x-auto">
-            <table class="w-full text-sm text-left border-collapse">
-              <thead>
-                <tr class="border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400">
-                  <th class="py-3 px-3">โปรไฟล์</th>
-                  <th class="py-3 px-3">รหัสนักเรียน</th>
-                  <th class="py-3 px-3">รายวิชา</th>
-                  <th class="py-3 px-3">คะแนน</th>
-                  <th class="py-3 px-3">เกรด</th>
-                  <th class="py-3 px-3 text-right">จัดการ</th>
-                </tr>
-              </thead>
-              <tbody id="adminTableBody" class="divide-y divide-slate-100 dark:divide-slate-800"></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <script>
-    let adminToken = sessionStorage.getItem('admin_token') || '';
-    let allRecords = [];
-    let filteredRecords = [];
-    let barChartInstance = null;
-    let doughnutChartInstance = null;
-
-    // Theme Init
-    function initTheme() {
-      const saved = localStorage.getItem('theme');
-      if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-        document.documentElement.classList.add('dark');
-        document.getElementById('themeIcon').textContent = '☀️';
-      }
-    }
-    function toggleTheme() {
-      const isDark = document.documentElement.classList.toggle('dark');
-      localStorage.setItem('theme', isDark ? 'dark' : 'light');
-      document.getElementById('themeIcon').textContent = isDark ? '☀️' : '🌙';
-      if (barChartInstance) renderCharts(window._lastStudentRows || []);
-    }
-
-    // Check Vercel <-> Supabase Health
-    async function checkConnection() {
-      const el = document.getElementById('dbStatus');
-      try {
-        const res = await fetch('/api/scores?health=1');
-        const data = await res.json();
-        if (data.connected) {
-          el.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-500"></span> เชื่อมต่อ Vercel ↔ Supabase สำเร็จ';
-        } else {
-          el.innerHTML = `<span class="w-2 h-2 rounded-full bg-rose-500"></span> ยังไม่เชื่อมต่อ Supabase: ${data.error || 'ตรวจสอบ Env'}`;
+        function refreshIcons() {
+            if (window.lucide) window.lucide.createIcons();
         }
-      } catch (e) {
-        el.innerHTML = '<span class="w-2 h-2 rounded-full bg-rose-500"></span> ไม่สามารถเรียก API ได้';
-      }
-    }
 
-    function getGrade(score) {
-      const s = Number(score);
-      if (s >= 80) return 'A';
-      if (s >= 70) return 'B';
-      if (s >= 60) return 'C';
-      if (s >= 50) return 'D';
-      return 'F';
-    }
-
-    function getFallbackAvatar(id) {
-      return `https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(id)}`;
-    }
-
-    function switchTab(tab) {
-      const stView = document.getElementById('studentView');
-      const adView = document.getElementById('adminView');
-      const stBtn = document.getElementById('tabStudentBtn');
-      const adBtn = document.getElementById('tabAdminBtn');
-
-      if (tab === 'student') {
-        stView.classList.remove('hidden');
-        adView.classList.add('hidden');
-        stBtn.className = 'px-3.5 py-2 rounded-xl text-sm font-medium bg-indigo-600 text-white';
-        adBtn.className = 'px-3.5 py-2 rounded-xl text-sm font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200';
-      } else {
-        stView.classList.add('hidden');
-        adView.classList.remove('hidden');
-        adBtn.className = 'px-3.5 py-2 rounded-xl text-sm font-medium bg-indigo-600 text-white';
-        stBtn.className = 'px-3.5 py-2 rounded-xl text-sm font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200';
-        if (adminToken) {
-          document.getElementById('adminLoginBox').classList.add('hidden');
-          document.getElementById('adminContent').classList.remove('hidden');
-          loadAllAdminData();
+        function isDarkMode() {
+            return document.documentElement.classList.contains('dark');
         }
-      }
-    }
 
-    // Student Search
-    function quickSearch(id) {
-      document.getElementById('searchInput').value = id;
-      searchStudent();
-    }
-
-    async function searchStudent(e) {
-      if (e) e.preventDefault();
-      const id = document.getElementById('searchInput').value.trim();
-      if (!id) return;
-
-      document.getElementById('studentWelcome').classList.add('hidden');
-      document.getElementById('studentNotFound').classList.add('hidden');
-      document.getElementById('studentDashboard').classList.add('hidden');
-
-      const res = await fetch(`/api/scores?student_id=${encodeURIComponent(id)}`);
-      const json = await res.json();
-      const rows = json.data || [];
-
-      if (!rows.length) {
-        document.getElementById('studentNotFound').classList.remove('hidden');
-        return;
-      }
-
-      window._lastStudentRows = rows;
-      document.getElementById('studentDashboard').classList.remove('hidden');
-      document.getElementById('stIdDisplay').textContent = id;
-
-      const pic = rows.find(r => r.pic)?.pic || getFallbackAvatar(id);
-      const img = document.getElementById('stPic');
-      img.src = pic;
-      img.onerror = () => { img.src = getFallbackAvatar(id); };
-
-      const scores = rows.map(r => Number(r.score));
-      const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
-      const topRow = rows.reduce((best, cur) => Number(cur.score) > Number(best.score) ? cur : best, rows[0]);
-
-      document.getElementById('kpiAvg').textContent = avg.toFixed(2);
-      document.getElementById('kpiGrade').textContent = getGrade(avg);
-      document.getElementById('kpiTopSubject').textContent = topRow.subject;
-      document.getElementById('kpiTopScore').textContent = `${topRow.score} คะแนน (เกรด ${getGrade(topRow.score)})`;
-      document.getElementById('kpiCount').textContent = `${rows.length} วิชา`;
-
-      const listEl = document.getElementById('subjectList');
-      listEl.innerHTML = rows.map(r => {
-        const s = Number(r.score);
-        const g = getGrade(s);
-        const barColor = s >= 80 ? 'bg-emerald-500' : s >= 70 ? 'bg-sky-500' : s >= 60 ? 'bg-amber-500' : s >= 50 ? 'bg-orange-500' : 'bg-rose-500';
-        return `
-          <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
-            <div class="flex justify-between items-center mb-2">
-              <span class="font-medium">${r.subject}</span>
-              <div class="flex items-center gap-2">
-                <span class="text-sm font-bold">${s} / 100</span>
-                <span class="px-2.5 py-0.5 rounded-lg text-xs font-bold bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300">เกรด ${g}</span>
-              </div>
-            </div>
-            <div class="w-full h-2.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-              <div class="${barColor} h-full rounded-full" style="width: ${s}%"></div>
-            </div>
-          </div>`;
-      }).join('');
-
-      renderCharts(rows);
-    }
-
-    function renderCharts(rows) {
-      const isDark = document.documentElement.classList.contains('dark');
-      const textColor = isDark ? '#cbd5e1' : '#475569';
-      const gridColor = isDark ? '#1e293b' : '#e2e8f0';
-
-      if (barChartInstance) barChartInstance.destroy();
-      if (doughnutChartInstance) doughnutChartInstance.destroy();
-
-      barChartInstance = new Chart(document.getElementById('barChart'), {
-        type: 'bar',
-        data: {
-          labels: rows.map(r => r.subject),
-          datasets: [{
-            label: 'คะแนน',
-            data: rows.map(r => Number(r.score)),
-            backgroundColor: '#6366f1',
-            borderRadius: 8
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          scales: {
-            y: { min: 0, max: 100, ticks: { color: textColor }, grid: { color: gridColor } },
-            x: { ticks: { color: textColor }, grid: { display: false } }
-          },
-          plugins: { legend: { display: false } }
+        // ==========================================
+        // THEME
+        // ==========================================
+        function toggleTheme() {
+            const isDark = document.documentElement.classList.toggle('dark');
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            syncThemeLabel();
+            refreshIcons();
+            if (lastSearchedId) renderStudentCharts(allRecords.filter(r => String(r.student_id).trim().toLowerCase() === lastSearchedId.toLowerCase()));
         }
-      });
 
-      const counts = { A: 0, B: 0, C: 0, D: 0, F: 0 };
-      rows.forEach(r => counts[getGrade(r.score)]++);
-
-      doughnutChartInstance = new Chart(document.getElementById('doughnutChart'), {
-        type: 'doughnut',
-        data: {
-          labels: Object.keys(counts),
-          datasets: [{
-            data: Object.values(counts),
-            backgroundColor: ['#10b981', '#0ea5e9', '#f59e0b', '#f97316', '#f43f5e'],
-            borderWidth: 0
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: { legend: { position: 'bottom', labels: { color: textColor } } }
+        function syncThemeLabel() {
+            const el = document.getElementById('theme-label-text');
+            if (el) el.textContent = isDarkMode() ? 'โหมดมืด' : 'โหมดสว่าง';
         }
-      });
-    }
 
-    // Admin Auth & CRUD
-    async function handleAdminLogin(e) {
-      e.preventDefault();
-      const username = document.getElementById('adminUser').value;
-      const password = document.getElementById('adminPass').value;
-      const errEl = document.getElementById('loginError');
-      errEl.classList.add('hidden');
+        // ==========================================
+        // DB CONNECTION CHECK
+        // ==========================================
+        async function checkConnection() {
+            const badge = document.getElementById('db-status-badge');
+            const dot   = document.getElementById('db-status-dot');
+            const text  = document.getElementById('db-status-text');
+            try {
+                const res  = await fetch('/api/scores?health=1');
+                const data = await res.json();
+                if (data.connected) {
+                    badge.className = 'inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-emerald-50 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/70';
+                    dot.className   = 'w-2 h-2 rounded-full bg-emerald-500';
+                    text.textContent = 'Supabase Cloud';
+                } else {
+                    badge.className = 'inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/70';
+                    dot.className   = 'w-2 h-2 rounded-full bg-rose-500';
+                    text.textContent = 'ยังไม่เชื่อมต่อ Supabase';
+                }
+            } catch {
+                badge.className = 'inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/70';
+                dot.className   = 'w-2 h-2 rounded-full bg-rose-500';
+                text.textContent = 'ไม่สามารถเรียก API ได้';
+            }
+        }
 
-      const res = await fetch('/api/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
-      });
-      const data = await res.json();
-      if (res.ok && data.token) {
-        adminToken = data.token;
-        sessionStorage.setItem('admin_token', adminToken);
-        document.getElementById('adminLoginBox').classList.add('hidden');
-        document.getElementById('adminContent').classList.remove('hidden');
-        loadAllAdminData();
-      } else {
-        errEl.textContent = data.error || 'เข้าสู่ระบบไม่สำเร็จ';
-        errEl.classList.remove('hidden');
-      }
-    }
+        // ==========================================
+        // GRADE HELPER
+        // ==========================================
+        function evaluateGrade(score) {
+            const n = Number(score);
+            if (n >= 80) return { grade:'A', label:'ดีเยี่ยม', passed:true, hex:'#10b981', barColor:'bg-emerald-500', badgeClass:'bg-emerald-50 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800', textColor:'text-emerald-600 dark:text-emerald-400' };
+            if (n >= 70) return { grade:'B', label:'ดี', passed:true, hex:'#3b82f6', barColor:'bg-blue-500', badgeClass:'bg-blue-50 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800', textColor:'text-blue-600 dark:text-blue-400' };
+            if (n >= 60) return { grade:'C', label:'ปานกลาง', passed:true, hex:'#f59e0b', barColor:'bg-amber-500', badgeClass:'bg-amber-50 dark:bg-amber-950/70 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800', textColor:'text-amber-600 dark:text-amber-400' };
+            if (n >= 50) return { grade:'D', label:'พอใช้', passed:true, hex:'#f97316', barColor:'bg-orange-500', badgeClass:'bg-orange-50 dark:bg-orange-950/70 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800', textColor:'text-orange-600 dark:text-orange-400' };
+            return { grade:'F', label:'ไม่ผ่านเกณฑ์', passed:false, hex:'#f43f5e', barColor:'bg-rose-500', badgeClass:'bg-rose-50 dark:bg-rose-950/70 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800', textColor:'text-rose-600 dark:text-rose-400' };
+        }
 
-    function adminLogout() {
-      adminToken = '';
-      sessionStorage.removeItem('admin_token');
-      document.getElementById('adminContent').classList.add('hidden');
-      document.getElementById('adminLoginBox').classList.remove('hidden');
-    }
+        function getFallbackAvatar(id) {
+            return `https://api.dicebear.com/9.x/avataaars/svg?seed=${encodeURIComponent(id)}`;
+        }
 
-    async function loadAllAdminData() {
-      const res = await fetch('/api/scores', {
-        headers: { Authorization: `Bearer ${adminToken}` }
-      });
-      if (res.status === 401 || res.status === 403) return adminLogout();
-      const json = await res.json();
-      allRecords = json.data || [];
-      populateFilterDropdowns();
-      applyAdminFilters();
-    }
+        function escapeHtml(s) {
+            if (s === null || s === undefined) return '';
+            return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+        }
 
-    function populateFilterDropdowns() {
-      const students = [...new Set(allRecords.map(r => r.student_id))].sort();
-      const subjects = [...new Set(allRecords.map(r => r.subject))].sort();
+        // ==========================================
+        // TAB NAVIGATION
+        // ==========================================
+        function switchTab(tab) {
+            const activeCls   = 'flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition cursor-pointer bg-indigo-600 text-white shadow-sm shadow-indigo-500/25';
+            const inactiveCls = 'flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition cursor-pointer bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700';
+            if (tab === 'student') {
+                document.getElementById('tab-student').className = activeCls;
+                document.getElementById('tab-admin').className   = inactiveCls;
+                document.getElementById('view-student').classList.remove('hidden');
+                document.getElementById('view-admin').classList.add('hidden');
+            } else {
+                document.getElementById('tab-admin').className   = activeCls;
+                document.getElementById('tab-student').className = inactiveCls;
+                document.getElementById('view-admin').classList.remove('hidden');
+                document.getElementById('view-student').classList.add('hidden');
+                if (adminToken) loadAllAdminData();
+            }
+            refreshIcons();
+        }
 
-      const stSel = document.getElementById('fltStudent');
-      const curSt = stSel.value;
-      stSel.innerHTML = '<option value="">รหัสนักเรียนทั้งหมด</option>' + students.map(s => `<option value="${s}">${s}</option>`).join('');
-      stSel.value = curSt;
+        // ==========================================
+        // STUDENT SEARCH
+        // ==========================================
+        function quickSearchStudent(id) {
+            document.getElementById('search-student-id').value = id;
+            performStudentLookup(id);
+        }
 
-      const sbSel = document.getElementById('fltSubject');
-      const curSb = sbSel.value;
-      sbSel.innerHTML = '<option value="">รายวิชาทั้งหมด</option>' + subjects.map(s => `<option value="${s}">${s}</option>`).join('');
-      sbSel.value = curSb;
-    }
+        function handleStudentSearch(e) {
+            e.preventDefault();
+            const id = document.getElementById('search-student-id').value.trim();
+            if (!id) return;
+            performStudentLookup(id);
+        }
 
-    function applyAdminFilters() {
-      const kw = document.getElementById('fltKeyword').value.toLowerCase().trim();
-      const st = document.getElementById('fltStudent').value;
-      const sb = document.getElementById('fltSubject').value;
-      const gr = document.getElementById('fltGrade').value;
-      const min = document.getElementById('fltMin').value !== '' ? Number(document.getElementById('fltMin').value) : -Infinity;
-      const max = document.getElementById('fltMax').value !== '' ? Number(document.getElementById('fltMax').value) : Infinity;
-      const sort = document.getElementById('fltSort').value;
+        async function performStudentLookup(studentId) {
+            const cleanId = String(studentId).trim();
+            lastSearchedId = cleanId;
 
-      filteredRecords = allRecords.filter(r => {
-        const s = Number(r.score);
-        if (kw && !`${r.student_id} ${r.subject}`.toLowerCase().includes(kw)) return false;
-        if (st && r.student_id !== st) return false;
-        if (sb && r.subject !== sb) return false;
-        if (gr && getGrade(s) !== gr) return false;
-        if (s < min || s > max) return false;
-        return true;
-      });
+            document.getElementById('student-welcome-dashboard').classList.add('hidden');
+            document.getElementById('student-not-found').classList.add('hidden');
+            document.getElementById('student-personal-dashboard').classList.add('hidden');
 
-      if (sort === 'score_desc') filteredRecords.sort((a, b) => Number(b.score) - Number(a.score));
-      else if (sort === 'score_asc') filteredRecords.sort((a, b) => Number(a.score) - Number(b.score));
-      else if (sort === 'id_asc') filteredRecords.sort((a, b) => a.student_id.localeCompare(b.student_id));
-      else filteredRecords.sort((a, b) => b.id - a.id);
+            try {
+                const res  = await fetch(`/api/scores?student_id=${encodeURIComponent(cleanId)}`);
+                const json = await res.json();
+                const rows = json.data || [];
 
-      document.getElementById('totalCount').textContent = allRecords.length;
-      document.getElementById('filteredCount').textContent = filteredRecords.length;
+                if (!rows.length) {
+                    document.getElementById('not-found-id-text').textContent = cleanId;
+                    document.getElementById('student-not-found').classList.remove('hidden');
+                    return;
+                }
 
-      const tbody = document.getElementById('adminTableBody');
-      tbody.innerHTML = filteredRecords.map(r => `
-        <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-          <td class="py-2.5 px-3">
-            <img src="${r.pic || getFallbackAvatar(r.student_id)}" onerror="this.src='${getFallbackAvatar(r.student_id)}'" class="w-9 h-9 rounded-full object-cover bg-slate-200" />
-          </td>
-          <td class="py-2.5 px-3 font-medium">${r.student_id}</td>
-          <td class="py-2.5 px-3">${r.subject}</td>
-          <td class="py-2.5 px-3 font-bold">${r.score}</td>
-          <td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 text-xs font-bold">${getGrade(r.score)}</span></td>
-          <td class="py-2.5 px-3 text-right space-x-1">
-            <button onclick='editRecord(${JSON.stringify(r)})' class="px-2.5 py-1 rounded-lg bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 text-xs font-medium">แก้ไข</button>
-            <button onclick="deleteRecord(${r.id})" class="px-2.5 py-1 rounded-lg bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 text-xs font-medium">ลบ</button>
-          </td>
-        </tr>
-      `).join('');
-    }
+                document.getElementById('student-personal-dashboard').classList.remove('hidden');
+                renderStudentDashboard(cleanId, rows);
+            } catch {
+                showToast('ไม่สามารถเรียก API ได้ กรุณาตรวจสอบการเชื่อมต่อ', 'error');
+            }
+        }
 
-    function resetFilters() {
-      document.getElementById('fltKeyword').value = '';
-      document.getElementById('fltStudent').value = '';
-      document.getElementById('fltSubject').value = '';
-      document.getElementById('fltGrade').value = '';
-      document.getElementById('fltMin').value = '';
-      document.getElementById('fltMax').value = '';
-      document.getElementById('fltSort').value = 'newest';
-      applyAdminFilters();
-    }
+        function renderStudentDashboard(id, rows) {
+            // Profile pic
+            const pic = rows.find(r => r.pic)?.pic || getFallbackAvatar(id);
+            const img = document.getElementById('res-student-pic');
+            img.onerror = () => { img.onerror = null; img.src = getFallbackAvatar(id); };
+            img.src = pic;
 
-    function autoFillPic() {
-      const id = document.getElementById('fStudentId').value.trim();
-      const picInput = document.getElementById('fPic');
-      if (!picInput.value && id) {
-        const existing = allRecords.find(r => r.student_id === id && r.pic);
-        if (existing) picInput.value = existing.pic;
-      }
-    }
+            document.getElementById('res-student-id').textContent = id;
 
-    async function saveRecord(e) {
-      e.preventDefault();
-      const id = document.getElementById('editId').value;
-      const payload = {
-        id: id ? Number(id) : undefined,
-        student_id: document.getElementById('fStudentId').value.trim(),
-        subject: document.getElementById('fSubject').value.trim(),
-        score: Number(document.getElementById('fScore').value),
-        pic: document.getElementById('fPic').value.trim()
-      };
+            const scores     = rows.map(r => Number(r.score));
+            const avg        = scores.reduce((a,b)=>a+b,0) / scores.length;
+            const overallEval = evaluateGrade(avg);
+            const topRow     = [...rows].sort((a,b)=>Number(b.score)-Number(a.score))[0];
+            const passedCount = rows.filter(r=>Number(r.score)>=50).length;
 
-      const res = await fetch('/api/scores', {
-        method: id ? 'PUT' : 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${adminToken}`
-        },
-        body: JSON.stringify(payload)
-      });
+            // Status badge
+            const badge = document.getElementById('res-status-badge');
+            if (avg >= 80) {
+                badge.className  = 'px-2.5 py-1 rounded-lg text-xs font-bold border bg-emerald-50 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800';
+                badge.textContent = 'สถานะ: ผลการเรียนดีเยี่ยม';
+            } else if (avg >= 50 && passedCount === rows.length) {
+                badge.className  = 'px-2.5 py-1 rounded-lg text-xs font-bold border bg-blue-50 dark:bg-blue-950/70 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800';
+                badge.textContent = 'สถานะ: ผ่านเกณฑ์ทุกรายวิชา';
+            } else {
+                badge.className  = 'px-2.5 py-1 rounded-lg text-xs font-bold border bg-amber-50 dark:bg-amber-950/70 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800';
+                badge.textContent = 'สถานะ: ต้องปรับปรุงบางรายวิชา';
+            }
 
-      const data = await res.json();
-      if (!res.ok) return alert(data.error || 'เกิดข้อผิดพลาด');
+            // KPIs
+            document.getElementById('kpi-avg-score').textContent = avg.toFixed(2);
+            const gradeEl = document.getElementById('kpi-overall-grade');
+            gradeEl.textContent = `เกรด ${overallEval.grade}`;
+            gradeEl.className   = `text-2xl sm:text-3xl font-extrabold mt-3 ${overallEval.textColor}`;
+            document.getElementById('kpi-overall-label').textContent = `ระดับ: ${overallEval.label}`;
+            document.getElementById('kpi-top-score').textContent   = `${Number(topRow.score)} คะแนน`;
+            document.getElementById('kpi-top-subject').textContent  = `วิชา: ${topRow.subject}`;
+            document.getElementById('kpi-subject-count').textContent = rows.length;
+            document.getElementById('kpi-pass-summary').textContent  = `ผ่านเกณฑ์ ${passedCount} / ${rows.length} วิชา`;
 
-      resetForm();
-      loadAllAdminData();
-    }
+            // Subject cards
+            document.getElementById('res-subjects-grid').innerHTML = rows.map(item => {
+                const s = Math.min(100, Math.max(0, Number(item.score)));
+                const e = evaluateGrade(s);
+                const passClass = e.passed
+                    ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/70'
+                    : 'bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800/70';
+                return `
+                    <div class="p-4 rounded-xl bg-slate-50/80 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 hover:border-indigo-300 dark:hover:border-indigo-700 transition">
+                        <div class="flex items-start justify-between gap-2 mb-3">
+                            <div class="flex items-center gap-2.5 min-w-0">
+                                <span class="w-9 h-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+                                    <i data-lucide="book-open" class="w-4 h-4"></i>
+                                </span>
+                                <div class="min-w-0">
+                                    <h5 class="font-bold text-slate-900 dark:text-white text-sm truncate">${escapeHtml(item.subject)}</h5>
+                                    <span class="inline-block mt-0.5 px-2 py-0.5 rounded-md text-[10px] font-semibold border ${passClass}">${e.passed ? 'ผ่านเกณฑ์' : 'ไม่ผ่านเกณฑ์'}</span>
+                                </div>
+                            </div>
+                            <div class="text-right shrink-0">
+                                <span class="px-2.5 py-1 rounded-lg text-xs font-extrabold border ${e.badgeClass}">เกรด ${e.grade}</span>
+                                <p class="text-sm font-bold ${e.textColor} mt-1">${s} <span class="text-[11px] font-normal text-slate-400">/ 100</span></p>
+                            </div>
+                        </div>
+                        <div class="w-full h-2.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                            <div class="h-full ${e.barColor} rounded-full transition-all duration-500" style="width:${s}%"></div>
+                        </div>
+                    </div>`;
+            }).join('');
 
-    function editRecord(r) {
-      document.getElementById('editId').value = r.id;
-      document.getElementById('fStudentId').value = r.student_id;
-      document.getElementById('fSubject').value = r.subject;
-      document.getElementById('fScore').value = r.score;
-      document.getElementById('fPic').value = r.pic || '';
-      document.getElementById('formTitle').textContent = `✏️ แก้ไขข้อมูล ID #${r.id} (Edit)`;
-      document.getElementById('submitBtn').textContent = 'อัปเดตข้อมูล';
-      document.getElementById('cancelEditBtn').classList.remove('hidden');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
+            renderStudentCharts(rows);
+            refreshIcons();
+        }
 
-    function resetForm() {
-      document.getElementById('editId').value = '';
-      document.getElementById('fStudentId').value = '';
-      document.getElementById('fSubject').value = '';
-      document.getElementById('fScore').value = '';
-      document.getElementById('fPic').value = '';
-      document.getElementById('formTitle').textContent = '➕ เพิ่มข้อมูลคะแนนใหม่ (Insert)';
-      document.getElementById('submitBtn').textContent = 'บันทึกข้อมูล';
-      document.getElementById('cancelEditBtn').classList.add('hidden');
-    }
+        function renderStudentCharts(rows) {
+            if (!window.Chart) return;
+            const dark      = isDarkMode();
+            const textColor = dark ? '#cbd5e1' : '#334155';
+            const gridColor = dark ? 'rgba(148,163,184,0.12)' : 'rgba(148,163,184,0.25)';
 
-    async function deleteRecord(id) {
-      if (!confirm('ยืนยันการลบข้อมูลรายการนี้?')) return;
-      const res = await fetch(`/api/scores?id=${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${adminToken}` }
-      });
-      if (res.ok) loadAllAdminData();
-    }
+            if (chartBar)      { chartBar.destroy();      chartBar = null; }
+            if (chartDoughnut) { chartDoughnut.destroy(); chartDoughnut = null; }
 
-    function exportCSV() {
-      const header = ['id', 'student_id', 'subject', 'score', 'grade', 'pic'];
-      const lines = [header.join(',')].concat(
-        filteredRecords.map(r => [r.id, `"${r.student_id}"`, `"${r.subject}"`, r.score, getGrade(r.score), `"${r.pic || ''}"`].join(','))
-      );
-      const blob = new Blob(['\uFEFF' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'student_scores.csv';
-      a.click();
-    }
+            chartBar = new Chart(document.getElementById('student-bar-chart').getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: rows.map(r => r.subject),
+                    datasets: [{ label:'คะแนน', data: rows.map(r=>Number(r.score)), backgroundColor: rows.map(r=>evaluateGrade(r.score).hex), borderRadius: 8, maxBarThickness: 46 }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend:{display:false}, tooltip:{ callbacks:{ label: ctx => ` คะแนน: ${ctx.parsed.y}/100 (เกรด ${evaluateGrade(ctx.parsed.y).grade})` } } },
+                    scales: {
+                        y: { beginAtZero:true, max:100, ticks:{color:textColor, font:{family:'Prompt',size:11}}, grid:{color:gridColor} },
+                        x: { ticks:{color:textColor, font:{family:'Prompt',size:11}}, grid:{display:false} }
+                    }
+                }
+            });
 
-    initTheme();
-    checkConnection();
-  </script>
+            const gc = { A:0, B:0, C:0, D:0, F:0 };
+            rows.forEach(r => { const g = evaluateGrade(r.score).grade; gc[g]++; });
+            const active = Object.keys(gc).filter(g => gc[g] > 0);
+            const palette = { A:'#10b981', B:'#3b82f6', C:'#f59e0b', D:'#f97316', F:'#f43f5e' };
+
+            chartDoughnut = new Chart(document.getElementById('student-doughnut-chart').getContext('2d'), {
+                type: 'doughnut',
+                data: {
+                    labels: active.map(g=>`เกรด ${g}`),
+                    datasets: [{ data: active.map(g=>gc[g]), backgroundColor: active.map(g=>palette[g]), borderWidth:2, borderColor: dark?'#0f172a':'#ffffff' }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false, cutout:'62%',
+                    plugins: { legend:{ position:'bottom', labels:{ color:textColor, padding:14, usePointStyle:true, font:{family:'Prompt',size:12} } }, tooltip:{ callbacks:{ label: ctx=>` ${ctx.label}: ${ctx.parsed} วิชา` } } }
+                }
+            });
+        }
+
+        function clearStudentSearch() {
+            lastSearchedId = '';
+            document.getElementById('search-student-id').value = '';
+            document.getElementById('student-personal-dashboard').classList.add('hidden');
+            document.getElementById('student-not-found').classList.add('hidden');
+            document.getElementById('student-welcome-dashboard').classList.remove('hidden');
+            refreshIcons();
+        }
+
+        // ==========================================
+        // ADMIN AUTH (Vercel /api/login)
+        // ==========================================
+        async function handleAdminLogin(e) {
+            e.preventDefault();
+            const username = document.getElementById('admin-username').value.trim();
+            const password = document.getElementById('admin-password').value;
+            const errEl    = document.getElementById('admin-login-error');
+            errEl.classList.add('hidden');
+
+            try {
+                const res  = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await res.json();
+                if (res.ok && data.token) {
+                    adminToken = data.token;
+                    sessionStorage.setItem('admin_token', adminToken);
+                    document.getElementById('admin-login-box').classList.add('hidden');
+                    document.getElementById('admin-dashboard').classList.remove('hidden');
+                    loadAllAdminData();
+                    showToast('เข้าสู่ระบบผู้ดูแลระบบสำเร็จ', 'success');
+                } else {
+                    errEl.classList.remove('hidden');
+                    showToast('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง', 'error');
+                }
+            } catch {
+                errEl.classList.remove('hidden');
+                showToast('ไม่สามารถเรียก API ได้', 'error');
+            }
+        }
+
+        function handleAdminLogout() {
+            adminToken = '';
+            sessionStorage.removeItem('admin_token');
+            document.getElementById('admin-dashboard').classList.add('hidden');
+            document.getElementById('admin-login-box').classList.remove('hidden');
+            resetAdminForm();
+            showToast('ออกจากระบบเรียบร้อยแล้ว', 'info');
+        }
+
+        function togglePasswordVisibility() {
+            const input = document.getElementById('admin-password');
+            const icon  = document.getElementById('password-eye-icon');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.setAttribute('data-lucide', 'eye-off');
+            } else {
+                input.type = 'password';
+                icon.setAttribute('data-lucide', 'eye');
+            }
+            refreshIcons();
+        }
+
+        // ==========================================
+        // ADMIN CRUD (Vercel /api/scores)
+        // ==========================================
+        async function loadAllAdminData() {
+            try {
+                const res  = await fetch('/api/scores', { headers: { Authorization: `Bearer ${adminToken}` } });
+                if (res.status === 401 || res.status === 403) { handleAdminLogout(); return; }
+                const json = await res.json();
+                allRecords = json.data || [];
+                populateAdminFilterDropdowns();
+                applyAdminFilters();
+            } catch {
+                showToast('ไม่สามารถโหลดข้อมูลจาก API ได้', 'error');
+            }
+        }
+
+        function populateAdminFilterDropdowns() {
+            const students = [...new Set(allRecords.map(r=>r.student_id))].sort();
+            const subjects  = [...new Set(allRecords.map(r=>r.subject))].sort();
+
+            const stSel = document.getElementById('filter-student-id');
+            const sbSel = document.getElementById('filter-subject');
+            const curSt = stSel.value;
+            const curSb = sbSel.value;
+
+            stSel.innerHTML = '<option value="all">ทั้งหมด</option>' + students.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+            sbSel.innerHTML = '<option value="all">ทั้งหมด</option>' + subjects.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+
+            if ([...stSel.options].some(o=>o.value===curSt)) stSel.value = curSt;
+            if ([...sbSel.options].some(o=>o.value===curSb)) sbSel.value = curSb;
+        }
+
+        function applyAdminFilters() {
+            const kw   = (document.getElementById('filter-keyword').value || '').trim().toLowerCase();
+            const st   = document.getElementById('filter-student-id').value;
+            const sb   = document.getElementById('filter-subject').value;
+            const gr   = document.getElementById('filter-grade').value;
+            const minV = document.getElementById('filter-min-score').value;
+            const maxV = document.getElementById('filter-max-score').value;
+            const sort = document.getElementById('filter-sort').value;
+
+            const hasMin = minV !== '' && !isNaN(Number(minV));
+            const hasMax = maxV !== '' && !isNaN(Number(maxV));
+
+            filteredRecords = allRecords.filter(item => {
+                const sId   = String(item.student_id||'').trim();
+                const subj  = String(item.subject||'').trim();
+                const score = Number(item.score||0);
+                const grade = evaluateGrade(score).grade;
+                if (kw && !sId.toLowerCase().includes(kw) && !subj.toLowerCase().includes(kw)) return false;
+                if (st !== 'all' && sId !== st) return false;
+                if (sb !== 'all' && subj !== sb) return false;
+                if (gr !== 'all' && grade !== gr) return false;
+                if (hasMin && score < Number(minV)) return false;
+                if (hasMax && score > Number(maxV)) return false;
+                return true;
+            });
+
+            filteredRecords.sort((a,b) => {
+                if (sort==='student_asc') return String(a.student_id).localeCompare(String(b.student_id),undefined,{numeric:true});
+                if (sort==='score_desc')  return Number(b.score)-Number(a.score);
+                if (sort==='score_asc')   return Number(a.score)-Number(b.score);
+                if (sort==='subject_asc') return String(a.subject).localeCompare(String(b.subject),'th');
+                return Number(b.id)-Number(a.id); // newest
+            });
+
+            renderAdminTable();
+        }
+
+        function resetAdminFilters() {
+            document.getElementById('filter-keyword').value = '';
+            document.getElementById('filter-student-id').value = 'all';
+            document.getElementById('filter-subject').value   = 'all';
+            document.getElementById('filter-grade').value     = 'all';
+            document.getElementById('filter-min-score').value = '';
+            document.getElementById('filter-max-score').value = '';
+            document.getElementById('filter-sort').value      = 'newest';
+            applyAdminFilters();
+        }
+
+        function renderAdminTable() {
+            const tbody        = document.getElementById('admin-table-body');
+            const emptyState   = document.getElementById('admin-table-empty');
+            const wrapper      = document.getElementById('admin-table-wrapper');
+            document.getElementById('admin-filtered-count').textContent = filteredRecords.length;
+            document.getElementById('admin-total-count').textContent    = allRecords.length;
+
+            if (filteredRecords.length === 0) {
+                wrapper.classList.add('hidden');
+                emptyState.classList.remove('hidden');
+                return;
+            }
+            wrapper.classList.remove('hidden');
+            emptyState.classList.add('hidden');
+
+            tbody.innerHTML = filteredRecords.map(item => {
+                const scoreVal = Math.min(100, Math.max(0, Number(item.score||0)));
+                const ev       = evaluateGrade(scoreVal);
+                const fallback = `https://placehold.co/80x80/4f46e5/ffffff?text=${encodeURIComponent(item.student_id)}`;
+                const thumb    = (item.pic && item.pic.trim()) ? item.pic.trim() : fallback;
+                return `
+                    <tr class="hover:bg-slate-50/90 dark:hover:bg-slate-800/50 transition">
+                        <td class="py-3 px-3.5">
+                            <img src="${escapeHtml(thumb)}" alt="รูปโปรไฟล์"
+                                onerror="this.onerror=null;this.src='${fallback}';"
+                                class="w-9 h-9 rounded-xl object-cover border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800">
+                        </td>
+                        <td class="py-3 px-3.5 font-bold text-slate-900 dark:text-white whitespace-nowrap">${escapeHtml(item.student_id)}</td>
+                        <td class="py-3 px-3.5 text-slate-700 dark:text-slate-300 font-medium">${escapeHtml(item.subject)}</td>
+                        <td class="py-3 px-3.5 whitespace-nowrap">
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold text-slate-800 dark:text-slate-100 w-8">${scoreVal}</span>
+                                <div class="w-16 h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden hidden sm:block">
+                                    <div class="h-full ${ev.barColor} rounded-full" style="width:${scoreVal}%"></div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="py-3 px-3.5 text-center whitespace-nowrap">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-extrabold border ${ev.badgeClass}">${ev.grade}</span>
+                        </td>
+                        <td class="py-3 px-3.5 text-right whitespace-nowrap">
+                            <div class="inline-flex items-center gap-1.5">
+                                <button type="button" onclick="startEditRecord('${item.id}')"
+                                    class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-700 dark:text-amber-300 border border-amber-200/80 dark:border-amber-800/70 text-xs font-semibold transition cursor-pointer">
+                                    <i data-lucide="pencil" class="w-3.5 h-3.5"></i><span class="hidden md:inline">แก้ไข</span>
+                                </button>
+                                <button type="button" onclick="openDeleteModal('${item.id}')"
+                                    class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-300 border border-rose-200/80 dark:border-rose-800/70 text-xs font-semibold transition cursor-pointer">
+                                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i><span class="hidden md:inline">ลบ</span>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>`;
+            }).join('');
+            refreshIcons();
+        }
+
+        // ==========================================
+        // ADMIN FORM (Insert / Edit)
+        // ==========================================
+        function updateLiveGradePreview() {
+            const val     = document.getElementById('input-score').value;
+            const preview = document.getElementById('live-grade-preview');
+            if (val === '') { preview.textContent='เกรด: -'; preview.className='text-[11px] font-semibold text-slate-400'; return; }
+            const n = Number(val);
+            if (isNaN(n) || n < 0 || n > 100) {
+                preview.textContent = 'คะแนนไม่ถูกต้อง';
+                preview.className   = 'text-[11px] font-semibold text-rose-600 dark:text-rose-400';
+            } else {
+                const ev = evaluateGrade(n);
+                preview.textContent = `เกรด: ${ev.grade} (${ev.label})`;
+                preview.className   = `text-[11px] font-semibold ${ev.textColor}`;
+            }
+        }
+
+        async function handleAdminFormSubmit(e) {
+            e.preventDefault();
+            const editId    = document.getElementById('edit-record-id').value.trim();
+            const studentId = document.getElementById('input-student-id').value.trim();
+            const subject   = document.getElementById('input-subject').value.trim();
+            const scoreRaw  = document.getElementById('input-score').value;
+            const score     = Number(scoreRaw);
+            const pic       = document.getElementById('input-pic').value.trim();
+
+            if (!studentId || !subject || scoreRaw === '' || isNaN(score) || score < 0 || score > 100) {
+                showToast('กรุณากรอกข้อมูลให้ครบถ้วนและถูกต้อง', 'error');
+                return;
+            }
+
+            const btn = document.getElementById('btn-submit-form');
+            btn.disabled = true;
+            btn.classList.add('opacity-70');
+
+            const payload = { student_id: studentId, subject, score, pic: pic || null };
+
+            try {
+                if (editId) {
+                    const res = await fetch(`/api/scores?id=${encodeURIComponent(editId)}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
+                        body: JSON.stringify(payload)
+                    });
+                    if (res.status === 401 || res.status === 403) { handleAdminLogout(); return; }
+                    if (!res.ok) throw new Error((await res.json()).error || 'แก้ไขไม่สำเร็จ');
+                    showToast(`แก้ไขข้อมูลวิชา "${subject}" สำเร็จ`, 'success');
+                } else {
+                    const res = await fetch('/api/scores', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
+                        body: JSON.stringify(payload)
+                    });
+                    if (res.status === 401 || res.status === 403) { handleAdminLogout(); return; }
+                    if (!res.ok) throw new Error((await res.json()).error || 'บันทึกไม่สำเร็จ');
+                    showToast(`เพิ่มข้อมูลวิชา "${subject}" สำเร็จ`, 'success');
+                }
+                resetAdminForm();
+                await loadAllAdminData();
+            } catch (err) {
+                showToast('เกิดข้อผิดพลาด: ' + (err.message || 'Unknown error'), 'error');
+            } finally {
+                btn.disabled = false;
+                btn.classList.remove('opacity-70');
+            }
+        }
+
+        function startEditRecord(id) {
+            const record = allRecords.find(r => String(r.id) === String(id));
+            if (!record) return;
+
+            document.getElementById('edit-record-id').value   = record.id;
+            document.getElementById('input-student-id').value = record.student_id;
+            document.getElementById('input-subject').value    = record.subject;
+            document.getElementById('input-score').value      = record.score;
+            document.getElementById('input-pic').value        = record.pic || '';
+            updateLiveGradePreview();
+
+            document.getElementById('form-mode-badge').className = 'w-7 h-7 rounded-lg bg-amber-100 dark:bg-amber-950 text-amber-600 dark:text-amber-400 flex items-center justify-center';
+            document.getElementById('form-mode-badge').innerHTML = '<i data-lucide="pencil" class="w-4 h-4"></i>';
+            document.getElementById('form-mode-text').textContent = 'แก้ไขข้อมูลคะแนน';
+            const idLabel = document.getElementById('editing-record-id-label');
+            idLabel.textContent = `ID: #${record.id}`;
+            idLabel.classList.remove('hidden');
+
+            document.getElementById('btn-submit-form').className = 'flex-1 py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-semibold text-sm shadow-sm transition flex items-center justify-center gap-2 cursor-pointer';
+            document.getElementById('btn-submit-text').textContent = 'บันทึกการแก้ไข';
+            document.getElementById('btn-cancel-edit').classList.remove('hidden');
+
+            refreshIcons();
+            document.getElementById('admin-crud-form').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        function resetAdminForm() {
+            document.getElementById('admin-crud-form').reset();
+            document.getElementById('edit-record-id').value = '';
+            updateLiveGradePreview();
+
+            document.getElementById('form-mode-badge').className = 'w-7 h-7 rounded-lg bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 flex items-center justify-center';
+            document.getElementById('form-mode-badge').innerHTML = '<i data-lucide="plus" class="w-4 h-4"></i>';
+            document.getElementById('form-mode-text').textContent = 'เพิ่มข้อมูลคะแนนใหม่';
+            document.getElementById('editing-record-id-label').classList.add('hidden');
+            document.getElementById('btn-submit-form').className = 'flex-1 py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm shadow-sm transition flex items-center justify-center gap-2 cursor-pointer';
+            document.getElementById('btn-submit-text').textContent = 'บันทึกข้อมูล';
+            document.getElementById('btn-cancel-edit').classList.add('hidden');
+            refreshIcons();
+        }
+
+        // ==========================================
+        // DELETE MODAL
+        // ==========================================
+        function openDeleteModal(id) {
+            const record = allRecords.find(r => String(r.id) === String(id));
+            if (!record) return;
+            pendingDeleteId = id;
+            document.getElementById('del-confirm-subject').textContent = record.subject;
+            document.getElementById('del-confirm-student').textContent = record.student_id;
+            const modal = document.getElementById('modal-delete-confirm');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            refreshIcons();
+        }
+
+        function closeDeleteModal() {
+            pendingDeleteId = null;
+            const modal = document.getElementById('modal-delete-confirm');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        async function executeDeleteRecord() {
+            if (!pendingDeleteId) return;
+            const btn = document.getElementById('btn-confirm-delete');
+            btn.disabled = true;
+            try {
+                const res = await fetch(`/api/scores?id=${encodeURIComponent(pendingDeleteId)}`, {
+                    method: 'DELETE',
+                    headers: { Authorization: `Bearer ${adminToken}` }
+                });
+                if (res.status === 401 || res.status === 403) { handleAdminLogout(); return; }
+                if (!res.ok) throw new Error((await res.json()).error || 'ลบไม่สำเร็จ');
+                if (String(document.getElementById('edit-record-id').value) === String(pendingDeleteId)) resetAdminForm();
+                closeDeleteModal();
+                await loadAllAdminData();
+                showToast('ลบข้อมูลเรียบร้อยแล้ว', 'success');
+            } catch (err) {
+                showToast('เกิดข้อผิดพลาดในการลบ: ' + (err.message || 'Unknown error'), 'error');
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        // ==========================================
+        // EXPORT CSV
+        // ==========================================
+        function exportFilteredCsv() {
+            if (filteredRecords.length === 0) { showToast('ไม่มีข้อมูลสำหรับส่งออก', 'error'); return; }
+            const headers = ['ID','Student_ID','Subject','Score','Grade','Status'];
+            const lines   = [headers.join(',')];
+            filteredRecords.forEach(r => {
+                const ev = evaluateGrade(r.score);
+                lines.push([r.id, `"${String(r.student_id).replace(/"/g,'""')}"`, `"${String(r.subject).replace(/"/g,'""')}"`, Number(r.score), ev.grade, `"${ev.passed?'ผ่านเกณฑ์':'ไม่ผ่านเกณฑ์'}"`].join(','));
+            });
+            const blob = new Blob(['\uFEFF' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+            const url  = URL.createObjectURL(blob);
+            const a    = document.createElement('a');
+            a.href     = url;
+            a.download = `student_scores_${new Date().toISOString().slice(0,10)}.csv`;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast(`ส่งออก CSV ${filteredRecords.length} รายการเรียบร้อยแล้ว`, 'success');
+        }
+
+        // ==========================================
+        // TOAST
+        // ==========================================
+        function showToast(message, type='success') {
+            const container = document.getElementById('toast-container');
+            const toast     = document.createElement('div');
+            const styles    = {
+                success: { bg:'bg-emerald-600 text-white', icon:'check-circle-2' },
+                error:   { bg:'bg-rose-600 text-white',    icon:'alert-circle' },
+                info:    { bg:'bg-slate-800 dark:bg-slate-700 text-white', icon:'info' }
+            };
+            const s = styles[type] || styles.info;
+            toast.className = `pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg ${s.bg} text-sm font-medium animate-fade-in`;
+            toast.innerHTML = `<i data-lucide="${s.icon}" class="w-4 h-4 shrink-0"></i><span class="flex-1 leading-snug">${escapeHtml(message)}</span>`;
+            container.appendChild(toast);
+            refreshIcons();
+            setTimeout(() => {
+                toast.style.opacity   = '0';
+                toast.style.transform = 'translateY(-6px)';
+                toast.style.transition = 'all 0.25s ease';
+                setTimeout(() => toast.remove(), 260);
+            }, 3200);
+        }
+    </script>
 </body>
 </html>
